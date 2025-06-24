@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jogo da Fotossíntese - Árvore Evoluída</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: black;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    #background {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-size: cover;
+      background-position: center;
+      z-index: 0;
+    }
+
+    canvas {
+      display: block;
+      position: absolute;
+      z-index: 1;
+    }
+
+    #restartBtn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 20px 30px;
+      font-size: 20px;
+      display: none;
+      background: #ffffffdd;
+      border-radius: 12px;
+      border: 2px solid #4caf50;
+      cursor: pointer;
+      transition: background 0.3s;
+      z-index: 3;
+    }
+
+    #restartBtn:hover {
+      background: #c8e6c9;
+    }
+
+    .tree-stage {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 150px;
+      height: 250px;
+      z-index: 2;
+    }
+
+    .trunk {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #6b4f2b;
+      border-radius: 5px;
+      transition: all 0.5s ease;
+    }
+
+    .copa {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      border-radius: 50%;
+      z-index: 1;
+      opacity: 0;
+      transition: all 0.5s ease;
+    }
+
+    .stage-1 .trunk { width: 10px; height: 30px; }
+    .stage-2 .trunk { width: 10px; height: 50px; }
+    .stage-3 .trunk { width: 12px; height: 70px; }
+    .stage-4 .trunk { width: 15px; height: 100px; }
+    .stage-5 .trunk { width: 18px; height: 120px; }
+
+    .stage-2 .copa { width: 20px; height: 20px; bottom: 50px; background: #4caf50; opacity: 1; }
+    .stage-3 .copa { width: 50px; height: 50px; bottom: 70px; background: #4caf50; opacity: 1; }
+    .stage-4 .copa { width: 80px; height: 80px; bottom: 100px; background: #4caf50; opacity: 1; }
+    .stage-5 .copa { width: 120px; height: 120px; bottom: 120px; background: #4caf50; opacity: 1; }
+
+    .primavera .copa { background: radial-gradient(pink, deeppink); }
+    .verao .copa { background: radial-gradient(#66bb6a, #1b5e20); }
+    .outono .copa { background: radial-gradient(orange, darkorange); }
+    .inverno .copa { background: radial-gradient(#ffffff, #b0bec5); }
+
+    .particle {
+      position: absolute;
+      top: -10px;
+      width: 10px;
+      height: 10px;
+      opacity: 0.8;
+      border-radius: 50%;
+      animation: fall linear infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    @keyframes fall {
+      0% { transform: translateY(0); opacity: 1; }
+      100% { transform: translateY(100vh); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div id="background"></div>
+  <canvas id="gameCanvas"></canvas>
+  <button id="restartBtn">Recomeçar</button>
+
+  <div class="tree-stage stage-1 inverno" id="tree">
+    <div class="trunk"></div>
+    <div class="copa" id="copa"></div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const tree = document.getElementById("tree");
+    const background = document.getElementById("background");
+    const restartBtn = document.getElementById('restartBtn');
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const seasons = ["inverno", "primavera", "verao", "outono"];
+    const seasonBackgrounds = {
+      inverno: "inverno.gif",
+      primavera: "primavera.gif",
+      verao: "verao.gif",
+      outono: "outono.gif"
+    };
+
+    let seasonIndex = 0;
+    let notes = [];
+    let activeKeys = [false, false, false, false];
+    let score = 0;
+    let treeStage = 1;
+    let growthPoints = 0;
+    let seasonPoints = 0;
+    let heightMaxed = false;
+    let currentParticles = [];
+    let gameRunning = true;
+
+    const lanes = [canvas.width / 5 * 1, canvas.width / 5 * 2, canvas.width / 5 * 3, canvas.width / 5 * 4];
+    const colors = ['#fff176', '#4fc3f7', '#66bb6a', '#8d6e63'];
+    const elements = ['Luz', 'Água', 'CO2', 'Mineral'];
+    const keyMap = { 'a': 0, 's': 1, 'd': 2, 'f': 3 };
+
+    function updateTreeVisual() {
+      tree.className = `tree-stage stage-${treeStage} ${seasons[seasonIndex]}`;
+    }
+
+    function updateBackground() {
+      background.style.backgroundImage = `url('${seasonBackgrounds[seasons[seasonIndex]]}')`;
+    }
+
+    function updateTreeSeason() {
+      seasonIndex = (seasonIndex + 1) % seasons.length;
+      tree.classList.remove(...seasons);
+      tree.classList.add(seasons[seasonIndex]);
+      currentParticles.forEach(p => p.remove());
+      currentParticles = [];
+      spawnParticles(seasons[seasonIndex]);
+      updateBackground();
+    }
+
+    function spawnParticles(season) {
+      const seasonColors = {
+        primavera: "#ff69b4",
+        verao: "#66bb6a",
+        outono: "orange",
+        inverno: "white"
+      };
+      for (let i = 0; i < 20; i++) {
+        const p = document.createElement("div");
+        p.className = "particle";
+        p.style.left = Math.random() * 100 + "vw";
+        p.style.animationDuration = (10 + Math.random() * 10) + "s";
+        p.style.background = seasonColors[season];
+        document.body.appendChild(p);
+        currentParticles.push(p);
+      }
+    }
+
+    function createNote() {
+      let lane = Math.floor(Math.random() * lanes.length);
+      notes.push({ x: lanes[lane], y: 0, lane: lane });
+    }
+
+    function drawBackground() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function drawNotes() {
+      for (let note of notes) {
+        ctx.fillStyle = colors[note.lane];
+        ctx.beginPath();
+        ctx.ellipse(note.x, note.y, 30, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'white';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(elements[note.lane], note.x, note.y + 5);
+      }
+    }
+
+    function drawTargets() {
+      for (let i = 0; i < lanes.length; i++) {
+        ctx.strokeStyle = activeKeys[i] ? '#000' : colors[i];
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(lanes[i], canvas.height - 150, 30, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = colors[i];
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(elements[i], lanes[i], canvas.height - 150 + 5);
+      }
+    }
+
+    function updateNotes() {
+      for (let note of notes.slice()) {
+        note.y += 4;
+        if (note.y > canvas.height - 90) {
+          notes.splice(notes.indexOf(note), 1);
+          applyPenalty();
+        }
+      }
+    }
+
+    function applyPenalty() {
+      score -= 1;
+      if (score <= -100) {
+        endGame();
+      }
+    }
+
+    function endGame() {
+      gameRunning = false;
+      restartBtn.style.display = 'block';
+    }
+
+    function gameLoop() {
+      if (!gameRunning) return;
+
+      drawBackground();
+      drawTargets();
+      drawNotes();
+      updateNotes();
+
+      ctx.fillStyle = 'white';
+      ctx.font = '20px Arial';
+      ctx.fillText(`Pontuação: ${score}`, 20, 30);
+      ctx.fillText(`Estágio: ${treeStage}`, 20, 60);
+      ctx.fillText(`Estação: ${seasons[seasonIndex]}`, 20, 90);
+
+      updateTreeVisual();
+
+      requestAnimationFrame(gameLoop);
+
+      if (Math.random() < 0.02) createNote();
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (!gameRunning) return;
+      const lane = keyMap[e.key];
+      if (lane === undefined) return;
+      activeKeys[lane] = true;
+
+      let hit = false;
+      for (let note of notes) {
+        if (note.lane === lane && Math.abs(note.y - (canvas.height - 150)) < 30) {
+          notes.splice(notes.indexOf(note), 1);
+          hit = true;
+          score += 1;
+
+          if (!heightMaxed) {
+            growthPoints += 1;
+            if (growthPoints >= 5) {
+              growthPoints = 0;
+              treeStage = Math.min(treeStage + 1, 5);
+              if (treeStage === 5) {
+                heightMaxed = true;
+                spawnParticles("inverno");
+                updateBackground();
+              }
+            }
+          } else {
+            seasonPoints += 1;
+            if (seasonPoints >= 10) {
+              seasonPoints = 0;
+              updateTreeSeason();
+            }
+          }
+          break;
+        }
+      }
+      if (!hit) applyPenalty();
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const lane = keyMap[e.key];
+      if (lane !== undefined) activeKeys[lane] = false;
+    });
+
+    restartBtn.addEventListener('click', () => {
+      score = 0;
+      treeStage = 1;
+      growthPoints = 0;
+      seasonPoints = 0;
+      heightMaxed = false;
+      seasonIndex = 0;
+      notes = [];
+      currentParticles.forEach(p => p.remove());
+      currentParticles = [];
+      gameRunning = true;
+      updateBackground();
+      tree.className = "tree-stage stage-1 inverno";
+      restartBtn.style.display = 'none';
+      gameLoop();
+    });
+
+    updateBackground();
+    spawnParticles("inverno");
+    gameLoop();
+  </script>
+</body>
+</html>
