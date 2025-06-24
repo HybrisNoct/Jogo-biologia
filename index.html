@@ -28,23 +28,32 @@
       z-index: 1;
     }
 
-    #restartBtn {
+    #startScreen {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 4;
+    }
+
+    #startBtn, #restartBtn {
       padding: 20px 30px;
       font-size: 20px;
-      display: none;
+      margin: 10px;
       background: #ffffffdd;
       border-radius: 12px;
       border: 2px solid #4caf50;
       cursor: pointer;
       transition: background 0.3s;
-      z-index: 3;
     }
 
-    #restartBtn:hover {
+    #startBtn:hover, #restartBtn:hover {
       background: #c8e6c9;
     }
 
@@ -115,12 +124,21 @@
 <body>
   <div id="background"></div>
   <canvas id="gameCanvas"></canvas>
-  <button id="restartBtn">Recomeçar</button>
+
+  <div id="startScreen">
+    <h1>Jogo da Fotossíntese</h1>
+    <p>Use as teclas <strong>A</strong>, <strong>S</strong>, <strong>D</strong>, <strong>F</strong> para capturar os elementos!</p>
+    <button id="startBtn">Iniciar Jogo</button>
+  </div>
+
+  <button id="restartBtn" style="display: none;">Recomeçar</button>
 
   <div class="tree-stage stage-1 inverno" id="tree">
     <div class="trunk"></div>
     <div class="copa" id="copa"></div>
   </div>
+
+  <audio id="bgMusic" src="musica.mp3" loop></audio>
 
   <script>
     const canvas = document.getElementById('gameCanvas');
@@ -128,6 +146,9 @@
     const tree = document.getElementById("tree");
     const background = document.getElementById("background");
     const restartBtn = document.getElementById('restartBtn');
+    const startScreen = document.getElementById('startScreen');
+    const startBtn = document.getElementById('startBtn');
+    const bgMusic = document.getElementById('bgMusic');
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -149,7 +170,7 @@
     let seasonPoints = 0;
     let heightMaxed = false;
     let currentParticles = [];
-    let gameRunning = true;
+    let gameRunning = false;
 
     const lanes = [canvas.width / 5 * 1, canvas.width / 5 * 2, canvas.width / 5 * 3, canvas.width / 5 * 4];
     const colors = ['#fff176', '#4fc3f7', '#66bb6a', '#8d6e63'];
@@ -330,9 +351,14 @@
       gameLoop();
     });
 
-    updateBackground();
-    spawnParticles("inverno");
-    gameLoop();
+    startBtn.addEventListener('click', () => {
+      startScreen.style.display = 'none';
+      gameRunning = true;
+      bgMusic.play();
+      updateBackground();
+      spawnParticles("inverno");
+      gameLoop();
+    });
   </script>
 </body>
 </html>
